@@ -129,6 +129,7 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
   let pending = header.subarray(dataOffset);
   let received = header.length;
   let processedBytes = 0;
+  let dataRemaining = dataSize;
 
   const feed = (bytes) => {
     // bytes: 采样数据（按块对齐截断），转 Int32 交错并写编码器
@@ -159,9 +160,13 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
   };
 
   const consume = (chunkBytes) => {
+    if (dataRemaining <= 0) return;
     let buf = pending.length ? concat(pending, chunkBytes) : chunkBytes;
-    const used = feed(buf);
-    pending = buf.subarray(used);
+    // 只编码 WAV data 块，避免把 data 后面的 LIST/JUNK 等元数据当成 PCM。
+    const dataBuf = buf.subarray(0, Math.min(buf.length, dataRemaining));
+    const used = feed(dataBuf);
+    pending = dataBuf.subarray(used);
+    dataRemaining -= used;
     processedBytes += used;
   };
 
