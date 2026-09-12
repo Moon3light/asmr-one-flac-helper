@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>设置 - ASMR-200 FLAC 助手</title>
+  <style>
+    :root { --line: #e3e8f0; --sub: #66708a; --pri: #2176da; }
+    body { margin: 0; font: 14px/1.7 "Segoe UI", "Microsoft YaHei", sans-serif; color: #1c2333; background: #f4f6fa; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin: 22px 0 8px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+    input[type="text"], input[type="password"], select {
+      padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; flex: 1;
+    }
+    button { padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer; background: var(--line); }
+    button.primary { background: linear-gradient(135deg,#2176da,#1a4ea6); color: #fff; font-weight: 700; }
+    ul.list { list-style: none; padding: 0; margin: 6px 0; }
+    ul.list li { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; margin: 4px 0; }
+    .note { color: var(--sub); font-size: 12px; }
+    .saved { color: #1d9e57; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ASMR-200 FLAC 助手 · 设置</h1>
+
+    <h2>站点白名单</h2>
+    <div class="card">
+      <ul class="list" id="whitelist"></ul>
+      <div class="row">
+        <input type="text" id="new-host" placeholder="域名，例如 asmr.one（仅 /work/ 路径生效）" />
+        <button id="btn-add">添加</button>
+      </div>
+      <p class="note">默认仅 <b>asmr-200.com</b>。添加其他镜像域名后，需点击“申请站点权限”以允许注入和访问其 API。</p>
+      <button class="primary" id="btn-perm">申请站点权限</button>
+      <span class="note" id="perm-status"></span>
+    </div>
+
+    <h2>翻译引擎</h2>
+    <div class="card">
+      <div class="row">
+        <select id="translator">
+          <option value="custom">本地 LM Studio / 自定义 LLM 接口（推荐）</option>
+          <option value="google">Google（免费，无需配置）</option>
+          <option value="edge">微软 Edge（免费，实验性）</option>
+        </select>
+      </div>
+      <div id="custom-box" style="display:none;">
+        <div class="row">
+          <input type="text" id="custom-base" list="preset-urls" placeholder="API Base URL，例如 http://localhost:1234/v1" />
+          <datalist id="preset-urls">
+            <option value="http://localhost:1234/v1">LM Studio 默认</option>
+            <option value="http://localhost:11434/v1">Ollama</option>
+          </datalist>
+          <button id="btn-lmstudio">LM Studio 预设</button>
+        </div>
+        <div class="row">
+          <input type="text" id="custom-model" list="model-list" placeholder="模型名，例如 qwen3-8b（可点右侧检测）" style="flex:1" />
+          <datalist id="model-list"></datalist>
+          <button id="btn-models">检测模型</button>
+        </div>
+        <div class="row"><input type="password" id="custom-key" placeholder="API Key（本地服务留空即可）" /></div>
+        <div class="row">
+          <button class="primary" id="btn-test">测试翻译</button>
+          <span class="note" id="test-status"></span>
+        </div>
+      </div>
+      <p class="note">翻译仅在字幕语言不是中文时触发。双语/仅中文模式可在每次任务的确认页临时切换。</p>
+    </div>
+
+    <div class="row" style="margin-top: 16px;">
+      <button class="primary" id="btn-save">保存设置</button>
+      <span class="saved" id="saved-tip"></span>
+    </div>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

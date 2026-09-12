@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { width: 300px; margin: 0; font: 13px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; color: #1c2333; background: #fff; }
+    .head { padding: 10px 14px; background: linear-gradient(135deg,#2176da,#1a4ea6); color: #fff; font-weight: 700; }
+    .body { padding: 12px 14px 14px; }
+    .status { margin-bottom: 10px; color: #66708a; }
+    .status b { color: #1c2333; }
+    .btn { display: inline-block; padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer;
+      background: linear-gradient(135deg,#2176da,#1a4ea6); color: #fff; font-weight: 700; font-size: 13px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .link { display: inline-block; margin-top: 8px; color: #2176da; text-decoration: none; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="head">ASMR-200 FLAC 助手</div>
+  <div class="body">
+    <div class="status" id="status">正在检查当前标签页…</div>
+    <button class="btn" id="btn-open" disabled>打开任务页</button>
+    <a class="link" href="#" id="lnk-options">打开设置（白名单 / 翻译引擎）</a>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

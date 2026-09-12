@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>ASMR-200 FLAC 助手</title>
+  <style>
+    :root {
+      --bg: #f4f6fa; --card: #fff; --line: #e3e8f0; --txt: #1c2333; --sub: #66708a;
+      --pri: #2176da; --pri-dark: #1a4ea6; --ok: #1d9e57; --err: #d64545; --warn: #d98c1f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #161a22; --card: #1f2530; --line: #303949; --txt: #e8ecf4; --sub: #97a1b8; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--txt);
+      font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+    h1 { font-size: 20px; margin: 0 0 16px; }
+    h1 small { color: var(--sub); font-size: 12px; font-weight: 400; margin-left: 8px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .hidden { display: none !important; }
+    .state-tip { color: var(--sub); }
+    .work-head { display: flex; gap: 14px; }
+    .work-cover { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; flex: none; background: var(--line); }
+    .work-meta { min-width: 0; }
+    .work-title { font-size: 16px; font-weight: 700; line-height: 1.45; margin: 0 0 6px; }
+    .work-sub { color: var(--sub); font-size: 13px; }
+    .work-sub a { color: var(--pri); text-decoration: none; }
+    .taglist { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { font-size: 11px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--sub); }
+    .filelist { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+    .file-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+    .file-row:last-child { border-bottom: none; }
+    .file-row input { flex: none; }
+    .file-ico { flex: none; font-size: 15px; width: 20px; text-align: center; }
+    .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-path { color: var(--sub); font-size: 11px; flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { color: var(--sub); font-size: 12px; flex: none; }
+    .toolbar { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    .total-line { color: var(--sub); font-size: 13px; }
+    .opt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 18px; }
+    .opt-item label { display: block; color: var(--sub); font-size: 12px; margin-bottom: 3px; }
+    select, input[type="text"] {
+      width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px;
+      background: var(--card); color: var(--txt); font-size: 13px;
+    }
+    .check-line { display: flex; align-items: center; gap: 6px; font-size: 13px; padding-top: 4px; }
+    button.btn {
+      padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
+      background: var(--line); color: var(--txt); font-size: 13px;
+    }
+    button.btn:hover { filter: brightness(0.96); }
+    button.btn.primary { background: linear-gradient(135deg, var(--pri), var(--pri-dark)); color: #fff; font-weight: 700; }
+    button.btn.small { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .folder-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .folder-name { font-weight: 600; word-break: break-all; }
+    .start-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+    .prog-row { margin-bottom: 12px; }
+    .prog-name { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+    .prog-name .st { color: var(--sub); flex: none; }
+    .prog-name .st.ok { color: var(--ok); }
+    .prog-name .st.err { color: var(--err); }
+    .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .bar > div { height: 100%; width: 0%; background: var(--pri); transition: width .2s; }
+    .overall { position: sticky; top: 0; background: var(--card); padding: 10px 0 6px; z-index: 5; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+    .log { font: 12px/1.7 Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 160px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+    .banner { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+    .banner.err { background: rgba(214,69,69,.12); color: var(--err); border: 1px solid rgba(214,69,69,.4); }
+    .banner.ok { background: rgba(29,158,87,.12); color: var(--ok); border: 1px solid rgba(29,158,87,.4); }
+    .summary li { margin: 4px 0; }
+    .note { color: var(--sub); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ASMR-200 FLAC 助手 <small>下载根目录 wav+vtt → 内嵌歌词/封面/标签的 FLAC</small></h1>
+
+    <!-- 状态：验证 -->
+    <div id="sec-verify" class="card">
+      <div class="state-tip">正在检查来源页面是否提供下载按钮…</div>
+    </div>
+    <div id="err-banner" class="banner err hidden"></div>
+
+    <!-- 状态：加载作品 -->
+    <div id="sec-loading" class="card hidden">
+      <div class="state-tip">正在获取作品信息与文件树…</div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="sec-main" class="hidden">
+      <div class="card">
+        <div class="work-head">
+          <img id="cover" class="work-cover" alt="封面" />
+          <div class="work-meta">
+            <p class="work-title" id="w-title"></p>
+            <div class="work-sub">
+              <span id="w-circle"></span> · <span id="w-vas"></span> · <span id="w-date"></span>
+              · <a id="w-link" target="_blank">作品页</a>
+            </div>
+            <div class="taglist" id="w-tags"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <button class="btn small" id="btn-all">全选</button>
+          <button class="btn small" id="btn-none">全不选</button>
+          <button class="btn small" id="btn-recommend">恢复推荐选择</button>
+          <span class="total-line" id="total-line"></span>
+        </div>
+        <div class="filelist" id="filelist"></div>
+        <p class="note">推荐选择 = 最浅音频层主版本的 wav + 配对 vtt；同层出现“有音效版/無音效版”等平行版本时自动择优一组，其余版本不再勾选（可手动改）。</p>
+      </div>
+
+      <div class="card">
+        <div class="opt-grid">
+          <div class="opt-item">
+            <label>歌词模式</label>
+            <select id="opt-lyrics">
+              <option value="bilingual">双语对照（原文 + 中文翻译）</option>
+              <option value="zh-only">仅中文（非中文歌词整体替换）</option>
+              <option value="orig">仅原文（不翻译）</option>
+              <option value="none">不嵌入歌词</option>
+            </select>
+          </div>
+          <div class="opt-item">
+            <label>翻译引擎</label>
+            <select id="opt-translator">
+              <option value="custom">本地 LM Studio / 自定义 LLM</option>
+              <option value="google">Google（免费，无需配置）</option>
+              <option value="edge">微软 Edge（免费，实验性）</option>
+            </select>
+          </div>
+          <div class="opt-item">
+            <label>FLAC 压缩等级</label>
+            <select id="opt-comp">
+              <option value="3">3（较快）</option>
+              <option value="5" selected>5（推荐）</option>
+              <option value="8">8（最小体积，最慢）</option>
+            </select>
+          </div>
+          <div class="opt-item">
+            <label>输出子文件夹名</label>
+            <input type="text" id="opt-subdir" />
+          </div>
+          <div class="opt-item">
+            <label>附加文件</label>
+            <div class="check-line"><input type="checkbox" id="opt-side" /> 同时导出 .lrc 歌词与 cover.jpg</div>
+          </div>
+          <div class="opt-item">
+            <label>原始 wav</label>
+            <div class="check-line"><input type="checkbox" id="opt-keepwav" /> 转换后保留原始 wav（默认转换成功后删除）</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="folder-line">
+          <span>保存到：</span>
+          <span class="folder-name" id="folder-name">（未选择）</span>
+          <button class="btn small" id="btn-pick">选择文件夹</button>
+          <button class="btn small hidden" id="btn-grant">授予写入权限</button>
+        </div>
+        <div class="start-row" style="margin-top: 12px;">
+          <button class="btn primary" id="btn-start">开始下载并转换</button>
+          <span class="note" id="start-note"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 进度 -->
+    <div id="sec-progress" class="card hidden">
+      <div class="overall">
+        <div class="prog-name"><strong id="overall-label">进行中…</strong><span class="st" id="overall-pct">0%</span></div>
+        <div class="bar"><div id="overall-bar"></div></div>
+      </div>
+      <div id="prog-list"></div>
+      <div style="margin-top: 10px; display: flex; gap: 8px;">
+        <button class="btn" id="btn-cancel">取消</button>
+      </div>
+      <div class="log" id="log" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- 完成 -->
+    <div id="sec-done" class="card hidden">
+      <div id="done-banner" class="banner ok">完成！</div>
+      <ul class="summary" id="done-list"></ul>
+      <button class="btn" id="btn-again">返回重新选择</button>
+    </div>
+  </div>
+
+  <script src="../lib/libflac.min.wasm.js"></script>
+  <script type="module" src="task.js"></script>
+</body>
+</html>

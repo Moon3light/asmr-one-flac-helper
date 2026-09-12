@@ -1,0 +1,6 @@
+# 测试产物（可由测试脚本重新生成）
+test/out/
+*.log
+# 系统文件
+Thumbs.db
+.DS_Store
