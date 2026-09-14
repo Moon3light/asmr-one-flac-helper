@@ -3,7 +3,7 @@
 //   block header: 1 字节 [is_last<<7 | type] + 3 字节大端长度
 //   STREAMINFO(type=0, 34 字节) 是第一个块；编码器输出中其 is_last=1
 //   VORBIS_COMMENT(type=4)：内部整数小端；LYRICS/标题/作者等标签写在这里
-//   PICTURE(type=6)：内部整数大端；封面写在这里（type=3 前封面）
+//   PICTURE(type=5)：内部整数大端；封面写在这里（picture 内部 type=3 前封面）
 //
 // 本模块把编码器输出的分块数组（第一个块中必含 "fLaC"+STREAMINFO）
 // 原地清掉 STREAMINFO 的 is_last，再插入 VORBIS_COMMENT 与 PICTURE 两个新块，
@@ -11,7 +11,7 @@
 
 export const FLAC_STREAMINFO = 0;
 export const FLAC_VORBIS_COMMENT = 4;
-export const FLAC_PICTURE = 6;
+export const FLAC_PICTURE = 5; // 6 是 CUESHEET，写 6 会导致严格解码器（libsndfile 等）解析失败
 
 /** 从分块数组中读取指定绝对偏移处的字节（用于跨块解析，仅小块使用） */
 function readAt(chunks, offset) {

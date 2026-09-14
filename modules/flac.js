@@ -96,7 +96,14 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
     }
   }
   const { sampleRate, channels, bits, dataOffset, dataSize } = headerInfo;
-  const totalSamples = dataSize > 0 ? Math.floor(dataSize / (channels * ((bits + 7) >> 3))) : 0;
+  const bytesPerSample = (bits + 7) >> 3;
+  // 部分 WAV 的 data 块大小字段不可信（流式写入的 0xFFFFFFFF / 头部与实际不符），
+  // 以 expectedSize（站点 API 报告的文件大小）为上限收敛
+  let dataRemaining = dataSize;
+  if (expectedSize > dataOffset && (dataSize <= 0 || dataSize > expectedSize - dataOffset)) {
+    dataRemaining = expectedSize - dataOffset;
+  }
+  const totalSamples = dataRemaining > 0 ? Math.floor(dataRemaining / (channels * bytesPerSample)) : 0;
   if (onHeader) onHeader({ sampleRate, channels, bits, totalSamples });
 
   if (![8, 16, 24, 32].includes(bits)) throw new Error(`不支持的位深: ${bits}`);
@@ -120,7 +127,6 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
   if (status !== 0) throw new Error(`初始化 FLAC 编码流失败: ${status}`);
 
   // 3. 逐块转换 PCM 并喂入编码器
-  const bytesPerSample = bits >> 3 || 1;
   const blockAlign = channels * bytesPerSample;
   const FRAME_SAMPLES = 4096;
   const pcmBuf = new Int32Array(FRAME_SAMPLES * channels);
@@ -129,7 +135,26 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
   let pending = header.subarray(dataOffset);
   let received = header.length;
   let processedBytes = 0;
-  let dataRemaining = dataSize;
+
+  // 格式突变检测：站点偶发在下载中途把 16-bit 数据混入 24-bit 流（每声道槽位变成
+  // 「16-bit 采样 + 1 字节填充」），按 24-bit 解释会产生满幅噪音。
+  // 特征：样本中间字节 = 低字节的符号扩展、且整体超出 16-bit 范围。
+  // 真实 24-bit 音源中该模式占比 <1%，突变流中 >95%，滑动窗口超阈值即中止。
+  const SUS_WINDOW_SAMPLES = 48000 * 5 * 2; // 约 5 秒的样本量
+  let winSus = 0, winTot = 0;
+  const win = [];
+  const countSuspect = (sus, tot) => {
+    win.push([sus, tot]);
+    winSus += sus; winTot += tot;
+    while (win.length > 1 && winTot - win[0][1] > SUS_WINDOW_SAMPLES) {
+      const [s, t] = win.shift();
+      winSus -= s; winTot -= t;
+    }
+    if (winTot >= SUS_WINDOW_SAMPLES / 2 && winSus / winTot > 0.5) {
+      throw new Error("检测到音源数据中途格式突变（服务端传输异常），继续编码只会产生噪音，已中止。请重试下载。");
+    }
+  };
+  let susCnt = 0, susTot = 0;
 
   const feed = (bytes) => {
     // bytes: 采样数据（按块对齐截断），转 Int32 交错并写编码器
@@ -149,12 +174,21 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
           case 24: pcmBuf[i] = ((bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16)) << 8) >> 8; break;
           case 32: pcmBuf[i] = bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24); break;
         }
+        if (bits === 24) {
+          const v = pcmBuf[i];
+          if ((v & 0xff00) === ((v & 0x80) ? 0xff00 : 0) && (v < -65536 || v > 65535)) susCnt++;
+          susTot++;
+        }
       }
       if (!Flac.FLAC__stream_encoder_process_interleaved(encoder, pcmBuf.subarray(0, n * channels), n)) {
         throw new Error("FLAC 编码失败（process_interleaved）");
       }
       if (writeError) throw writeError;
       off += n;
+    }
+    if (bits === 24 && susTot > 0) {
+      countSuspect(susCnt, susTot);
+      susCnt = 0; susTot = 0;
     }
     return usable;
   };
@@ -180,6 +214,12 @@ export async function encodeWavToFlacChunks(readChunk, opts = {}) {
     received += chunk.length;
     consume(chunk);
     if (onProgress) onProgress(received, expectedSize);
+  }
+  // 数据流提前结束（截断）检测：缺口超过 1 秒音频即视为下载失败，
+  // 避免静默产出时长缺失的 FLAC
+  if (dataRemaining > sampleRate * blockAlign) {
+    Flac.FLAC__stream_encoder_delete(encoder);
+    throw new Error(`下载不完整：数据流比 WAV 头声明少 ${dataRemaining} 字节，请重试下载。`);
   }
   // 丢弃不足一帧的残余（<1 样本时无需处理；此处按字节四舍五入丢弃）
   if (onProgress) onProgress(received, expectedSize || received);
