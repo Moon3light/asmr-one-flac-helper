@@ -11,6 +11,9 @@
 5. **元数据**：FLAC 内嵌 `LYRICS`（双语歌词）、`TITLE` / `TRACKNUMBER` / `ARTIST`（声优）/ `ALBUM`（作品标题）/ `ORGANIZATION` + `ALBUMARTIST`（社团）/ `DATE` / `GENRE=ASMR` / `COMMENT`（来源链接）、封面 `PICTURE` 块。
 6. **输出**：`{你选的文件夹}/{RJ号 标题}/01.flac …`，可选同时导出 `.lrc` 歌词与 `cover.jpg`。
 7. **wav 清理**：默认不落盘所以无需清理；勾选“转换后保留原始 wav”则会先写盘、转换成功后自动删除。
+8. **数据校验**（v0.1.1 新增）：
+   - 下载中途被服务端截断时直接报错，不再静默产出时长缺失的 FLAC；
+   - 检测音源数据中途格式突变（站点偶发把 16-bit 数据混入 24-bit 流，编码后会变成整段剧烈噪音），检出即中止并提示重试，不再等用户听出来。
 
 ## 安装（开发者模式加载）
 
@@ -40,7 +43,7 @@
 
 - 站点公开接口：`/api/workInfo/{id}`、`/api/tracks/{id}?v=2`、`/api/media/download/{hash}`、`/api/cover/{id}.jpg`（均免认证）。`workInfo` 对个别作品不可用时，自动降级为从作品页 DOM 提取标题/社团/声优。
 - 本地翻译走 LM Studio 的 OpenAI 兼容接口，manifest 已声明 `http://localhost/*` / `http://127.0.0.1/*` 主机权限（扩展页面可绕过 CORS 直连本地服务）。
-- FLAC 编码：[libflac.js](https://github.com/mmig/libflac.js)（WASM），边下载边编码，内存占用低。
+- FLAC 编码：[libflac.js](https://github.com/mmig/libflac.js)（WASM），边下载边编码，内存占用低。采样率/位深/声道在流开始时由 WAV 头一次性锁定；data 块大小字段不可信时以站点 API 报告的文件大小为准。
 - 元数据注入：纯 JS 实现的 FLAC 容器写入（`STREAMINFO` 补写 PCM MD5 + `VORBIS_COMMENT` + `PICTURE`），不经 C API，测试充分（`test/` 内含端到端验证脚本与产物）。
 - 中文判定：假名→日文、谚文→韩文、汉字区分简繁；繁体字幕按需求保留不翻。
 

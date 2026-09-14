@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ASMR-200 FLAC 助手",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "在 asmr-200.com 作品页下载根目录的 wav+vtt，转换为内嵌双语歌词、封面与作者标签的 FLAC。",
   "minimum_chrome_version": "102",
   "content_security_policy": {
