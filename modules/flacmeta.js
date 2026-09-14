@@ -3,7 +3,7 @@
 //   block header: 1 字节 [is_last<<7 | type] + 3 字节大端长度
 //   STREAMINFO(type=0, 34 字节) 是第一个块；编码器输出中其 is_last=1
 //   VORBIS_COMMENT(type=4)：内部整数小端；LYRICS/标题/作者等标签写在这里
-//   PICTURE(type=5)：内部整数大端；封面写在这里（picture 内部 type=3 前封面）
+//   PICTURE(type=6)：内部整数大端；封面写在这里（picture 内部 type=3 前封面）
 //
 // 本模块把编码器输出的分块数组（第一个块中必含 "fLaC"+STREAMINFO）
 // 原地清掉 STREAMINFO 的 is_last，再插入 VORBIS_COMMENT 与 PICTURE 两个新块，
@@ -11,7 +11,7 @@
 
 export const FLAC_STREAMINFO = 0;
 export const FLAC_VORBIS_COMMENT = 4;
-export const FLAC_PICTURE = 5; // 6 是 CUESHEET，写 6 会导致严格解码器（libsndfile 等）解析失败
+export const FLAC_PICTURE = 6; // FLAC 块类型：5=CUESHEET，6=PICTURE（勿改，曾误改为 5 导致 foobar2000 拒开）
 
 /** 从分块数组中读取指定绝对偏移处的字节（用于跨块解析，仅小块使用） */
 function readAt(chunks, offset) {
@@ -142,13 +142,39 @@ export function injectTags(chunks, { tags = {}, picture = null, pcmMd5 = null } 
       patchedPrefix[md5Off + i] = parseInt(pcmMd5.substr(i * 2, 2), 16);
     }
   }
-  const rest0 = prefix.slice(siEnd);   // 前缀中超出头的部分（音频帧开头），保持原顺序
+  const rest0start = siEnd; // 前缀中超出头的部分从音频帧开头计算，见下
+  // 原始块链中 STREAMINFO 之后可能还有编码器自带的 vendor VORBIS_COMMENT 等块。
+  // 这些块整体被新注入的块替换，必须剥掉，否则它们会残留在新链的 is_last
+  // 块之后，成为非法的「孤儿块」，导致严格播放器（foobar2000 等）拒开文件。
+  let audioStart = rest0start;
+  for (let pos = siEnd, i = 0; i < 64; i++) {
+    const head = readAt(chunks, pos);
+    if (head === undefined) break; // 分块边界数据不足，保守地按音频紧跟 STREAMINFO 处理
+    const isLast = (head & 0x80) !== 0;
+    const len = (readAt(chunks, pos + 1) << 16) | (readAt(chunks, pos + 2) << 8) | readAt(chunks, pos + 3);
+    pos += 4 + len;
+    if (isLast) { audioStart = pos; break; }
+  }
+  const rest0 = prefix.slice(siEnd);   // 保守回退路径：音频帧开头（含未被识别的原始块残余）
 
   const picBlock = picture ? buildPictureBlock(picture, true) : null;
   const vorbis = buildVorbisCommentBlock(tags, !picBlock); // 无封面时 vorbis 是最后一块
 
   const out = [patchedPrefix, vorbis];
   if (picBlock) out.push(picBlock);
+  if (audioStart > rest0start) {
+    // 跳过被替换的原始元数据残余，从真正的音频帧起点继续
+    let acc2 = 0, j = 0;
+    while (j < chunks.length && acc2 + chunks[j].length <= audioStart) {
+      acc2 += chunks[j].length;
+      j++;
+    }
+    if (j < chunks.length) {
+      out.push(chunks[j].subarray(audioStart - acc2));
+      for (let k = j + 1; k < chunks.length; k++) out.push(chunks[k]);
+      return out;
+    }
+  }
   if (rest0.length) out.push(rest0);
   for (let i = idx + 1; i < chunks.length; i++) out.push(chunks[i]);
   return out;
